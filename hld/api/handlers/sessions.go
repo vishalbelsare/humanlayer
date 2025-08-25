@@ -61,6 +61,22 @@ func (h *SessionHandlers) CreateSession(ctx context.Context, req api.CreateSessi
 		},
 	}
 
+	// Handle proxy configuration
+	// Note: OpenAPI generates ProxyBaseUrl/ProxyApiKey (following JSON conventions)
+	// but we map to ProxyBaseURL/ProxyAPIKey (following Go conventions for acronyms)
+	if req.Body.ProxyEnabled != nil && *req.Body.ProxyEnabled {
+		config.ProxyEnabled = true
+		if req.Body.ProxyBaseUrl != nil {
+			config.ProxyBaseURL = *req.Body.ProxyBaseUrl // Intentional: ProxyBaseUrl -> ProxyBaseURL
+		}
+		if req.Body.ProxyModelOverride != nil {
+			config.ProxyModelOverride = *req.Body.ProxyModelOverride
+		}
+		if req.Body.ProxyApiKey != nil {
+			config.ProxyAPIKey = *req.Body.ProxyApiKey // Intentional: ProxyApiKey -> ProxyAPIKey
+		}
+	}
+
 	// Handle optional fields
 	if req.Body.Title != nil {
 		config.Title = *req.Body.Title
@@ -300,6 +316,30 @@ func (h *SessionHandlers) UpdateSession(ctx context.Context, req api.UpdateSessi
 			var nilTime *time.Time
 			update.DangerouslySkipPermissionsExpiresAt = &nilTime
 		}
+	}
+
+	// Update model if specified
+	if req.Body.Model != nil {
+		update.Model = req.Body.Model
+	}
+	if req.Body.ModelId != nil {
+		update.ModelID = req.Body.ModelId
+	}
+
+	// Update proxy configuration if specified
+	// Note: OpenAPI generates ProxyBaseUrl/ProxyApiKey (following JSON conventions)
+	// but we map to ProxyBaseURL/ProxyAPIKey (following Go conventions for acronyms)
+	if req.Body.ProxyEnabled != nil {
+		update.ProxyEnabled = req.Body.ProxyEnabled
+	}
+	if req.Body.ProxyBaseUrl != nil {
+		update.ProxyBaseURL = req.Body.ProxyBaseUrl // Intentional: ProxyBaseUrl -> ProxyBaseURL
+	}
+	if req.Body.ProxyModelOverride != nil {
+		update.ProxyModelOverride = req.Body.ProxyModelOverride
+	}
+	if req.Body.ProxyApiKey != nil {
+		update.ProxyAPIKey = req.Body.ProxyApiKey // Intentional: ProxyApiKey -> ProxyAPIKey
 	}
 
 	err := h.manager.UpdateSessionSettings(ctx, string(req.Id), update)
@@ -644,8 +684,8 @@ func (h *SessionHandlers) GetHealth(ctx context.Context, req api.GetHealthReques
 	}, nil
 }
 
-// GetDatabaseInfo returns information about the daemon's database
-func (h *SessionHandlers) GetDatabaseInfo(ctx context.Context, req api.GetDatabaseInfoRequestObject) (api.GetDatabaseInfoResponseObject, error) {
+// GetDebugInfo returns debug information about the daemon
+func (h *SessionHandlers) GetDebugInfo(ctx context.Context, req api.GetDebugInfoRequestObject) (api.GetDebugInfoResponseObject, error) {
 	stats := make(map[string]int64)
 	var size int64
 	var lastModified *time.Time
@@ -683,11 +723,12 @@ func (h *SessionHandlers) GetDatabaseInfo(ctx context.Context, req api.GetDataba
 		}
 	}
 
-	response := api.GetDatabaseInfo200JSONResponse{
+	response := api.GetDebugInfo200JSONResponse{
 		Path:       dbPath,
 		Size:       size,
 		TableCount: 5, // We have 5 tables: sessions, conversation_events, approvals, mcp_servers, schema_version
 		Stats:      stats,
+		CliCommand: config.DefaultCLICommand,
 	}
 
 	if lastModified != nil {

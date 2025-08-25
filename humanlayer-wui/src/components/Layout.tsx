@@ -15,6 +15,7 @@ import { ThemeSelector } from '@/components/ThemeSelector'
 import { SessionLauncher } from '@/components/SessionLauncher'
 import { HotkeyPanel } from '@/components/HotkeyPanel'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { SettingsDialog } from '@/components/SettingsDialog'
 import { useSessionLauncher, useSessionLauncherHotkeys } from '@/hooks/useSessionLauncher'
 import { useDaemonConnection } from '@/hooks/useDaemonConnection'
 import { useStore } from '@/AppStore'
@@ -24,7 +25,7 @@ import { notificationService, type NotificationOptions } from '@/services/Notifi
 import { useTheme } from '@/contexts/ThemeContext'
 import { formatMcpToolName, getSessionNotificationText } from '@/utils/formatting'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { MessageCircle, Bug } from 'lucide-react'
+import { MessageCircle, Bug, HelpCircle, Settings } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { DebugPanel } from '@/components/DebugPanel'
 import { notifyLogLocation } from '@/lib/log-notification'
@@ -40,6 +41,8 @@ export function Layout() {
   const { setTheme } = useTheme()
   const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false)
   const location = useLocation()
+  const isSettingsDialogOpen = useStore(state => state.isSettingsDialogOpen)
+  const setSettingsDialogOpen = useStore(state => state.setSettingsDialogOpen)
 
   // Use the daemon connection hook for all connection management
   const { connected, connecting, version, connect } = useDaemonConnection()
@@ -56,9 +59,30 @@ export function Layout() {
     setTheme('launch')
   })
 
+  // Settings dialog hotkey
+  // TODO: We should bump this to "cmd+," later on
+  // There's some pain associated with doing this with MenuBuilder in Tauri, so saving for later
+  useHotkeys(
+    'mod+shift+s',
+    () => {
+      setSettingsDialogOpen(!isSettingsDialogOpen)
+    },
+    {
+      enableOnFormTags: true,
+    },
+  )
+
   // Get store actions
   const updateSession = useStore(state => state.updateSession)
   const updateSessionStatus = useStore(state => state.updateSessionStatus)
+  const fetchUserSettings = useStore(state => state.fetchUserSettings)
+
+  // Fetch user settings when connected
+  useEffect(() => {
+    if (connected) {
+      fetchUserSettings()
+    }
+  }, [connected, fetchUserSettings])
   const refreshActiveSessionConversation = useStore(state => state.refreshActiveSessionConversation)
   const clearNotificationsForSession = useStore(state => state.clearNotificationsForSession)
   const wasRecentlyNavigatedFrom = useStore(state => state.wasRecentlyNavigatedFrom)
@@ -470,7 +494,7 @@ export function Layout() {
                 href="https://github.com/humanlayer/humanlayer/issues/new?title=Feedback%20on%20CodeLayer&body=%23%23%23%20Problem%20to%20solve%20%2F%20Expected%20Behavior%0A%0A%0A%23%23%23%20Proposed%20solution"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-1.5 py-0.5 text-sm font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
               >
                 <MessageCircle className="w-3 h-3" />
               </a>
@@ -481,12 +505,27 @@ export function Layout() {
               </p>
             </TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setHotkeyPanelOpen(true)}
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
+              >
+                <HelpCircle className="w-3 h-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="flex items-center gap-1">
+                View all keyboard shortcuts <KeyboardShortcut keyString="?" />
+              </p>
+            </TooltipContent>
+          </Tooltip>
           {import.meta.env.DEV && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={() => setIsDebugPanelOpen(true)}
-                  className="px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
+                  className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
                 >
                   <Bug className="w-3 h-3" />
                 </button>
@@ -497,6 +536,21 @@ export function Layout() {
             </Tooltip>
           )}
           <ThemeSelector />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setSettingsDialogOpen(true)}
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors"
+              >
+                <Settings className="w-3 h-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="flex items-center gap-1">
+                Settings <KeyboardShortcut keyString="⌘+shift+s" />
+              </div>
+            </TooltipContent>
+          </Tooltip>
           <div className="flex items-center gap-2 font-mono text-xs">
             <span className="uppercase tracking-wider">
               {connecting && 'CONNECTING...'}
@@ -523,6 +577,9 @@ export function Layout() {
 
       {/* Debug Panel */}
       <DebugPanel open={isDebugPanelOpen} onOpenChange={setIsDebugPanelOpen} />
+
+      {/* Settings Dialog */}
+      <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
 
       {/* Global Dangerous Skip Permissions Monitor */}
       <DangerousSkipPermissionsMonitor />
